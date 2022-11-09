@@ -51,11 +51,11 @@ class CookieProcessor():
             for cookie in most_active_cookies:
                 print(cookie)
 
+            return most_active_cookies
         # No cookies in that date. We are not told what to do in this case, but we print "No Cookies"
         else:
             print('No Cookies on this date')
-
-        return most_active_cookies
+            return 'No Cookies on this date'
 
 
 if __name__ == "__main__":
@@ -66,6 +66,8 @@ if __name__ == "__main__":
     arg_parser.add_argument("path")
     arg_parser.add_argument("--date", "-d")
     args = arg_parser.parse_args(sys.argv[1:])
+    if args.date is None:
+        print("Please add -d followed by a date")
     # Process the arguments
     cookie_processor = CookieProcessor()
     cookie_processor.process_cookies_csv(args.path)
