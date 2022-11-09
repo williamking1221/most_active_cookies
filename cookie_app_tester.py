@@ -10,13 +10,13 @@ from most_active_cookie import CookieProcessor
 
 class ProducingData:
 
-    def gen_test_data(self, num_unique_cookies=20, num_total_cookies=100, num_dates=10, num_shuffles=10,
+    def gen_test_data(self, num_unique_cookies=20, num_total_cookies=100, num_timestamps=10, num_shuffles=10,
                       max_chars=16, all_cookies_same_len=True, multiple_max=False, exists=True):
         """
         Generates the test data set and a solution. Builds the test data set out into a csv.
         :param num_unique_cookies: Number of unique cookies
         :param num_total_cookies: Total number of cookies
-        :param num_dates: Number of dates
+        :param num_timestamps: Number of dates
         :param num_shuffles: Number of shuffles, more shuffles mean more flat distribution of number of cookies
         :param max_chars: Number of max characters of the cookies
         :param all_cookies_same_len: Do all cookie names have the same length?
@@ -25,9 +25,13 @@ class ProducingData:
         :return: query date and solution (for testing), and makes a list of list to be converted to a csv
         """
         cookie_list = self.gen_cookies(num_unique_cookies, max_chars, all_cookies_same_len)
-        date_list = [self.gen_random_timestamp() for k in range(num_dates)]
+        timestamp_list = [self.gen_random_timestamp() for k in range(num_timestamps)]
+        date_set = set()
+        for timestamp in timestamp_list:
+            date_set.add(timestamp)
+        date_list = [date for date in date_set]
         counts = self.gen_counts(num_unique_cookies, num_total_cookies, num_shuffles)
-        dates_dict, query_idx, solution_set = self.gen_dates(counts, num_dates, multiple_max)
+        dates_dict, query_idx, solution_set = self.gen_dates(counts, len(date_list), multiple_max)
 
         solution = set(cookie_list[i] for i in solution_set)
         if exists:
@@ -35,33 +39,42 @@ class ProducingData:
         else:
             query_date = self.gen_random_timestamp()
             while query_date in date_list:
-                query_date = self.gen_random_timestamp()
+                query_date = self.gen_random_timestamp(fake_date=True)
             solution = "No Cookies on this date"
 
         test_data = []
-        for i in range(num_dates):
+        for i in range(len(date_list)):
             for k in dates_dict[i]:
                 row = list()
-                row.append([cookie_list[k], date_list[i]])
+                cookie = cookie_list[k]
+                # We format the timestamp to be in the desired format in the csv with random times.
+                hr = random.randint(0, 23)
+                minute = random.randint(0, 59)
+                sec = random.randint(0, 59)
+                timestamp = date_list[i] + "T" + str(hr).zfill(2) + ":" + str(minute).zfill(2) + ":" \
+                            + str(sec).zfill(2) + "+00:00"
+                row.append([cookie, timestamp])
                 test_data.extend(row)
         self.convert_to_csv(test_data)
 
         return query_date.split("T")[0], solution
 
     @staticmethod
-    def gen_random_timestamp():
+    def gen_random_timestamp(fake_date=False):
         """
-        Generate a random timestamp in the specified format
+        Generate a random timestamp containing month, day, and year. We generate hours, minutes, and seconds later.
+        Note: We consider only two possible years for dates to make it extremely likely that we will look at
+        the case of query being a date with multiple cookies at different times voa the large and very datasets.
         :return:string of timestamp
         """
-        year = random.randint(1, 9999)      # Note: With this, there may be future dates
+        if not fake_date:
+            year = random.randint(2021, 2022)
+        else:
+            year = random.randint(1, 9999)
         month = random.randint(1, 12)
         day = random.randint(1, 28)         # Note: With this, there may be fake dates
-        hr = random.randint(0, 23)
-        minute = random.randint(0, 59)
-        sec = random.randint(0, 59)
-        timestamp = datetime.datetime(year, month, day, hr, minute, sec, tzinfo=datetime.timezone.utc)
-        return timestamp.strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        timestamp = datetime.datetime(year, month, day)
+        return timestamp.strftime("%Y-%m-%d")
 
     @staticmethod
     def gen_cookies(num_unique=20, max_chars=16, all_same_len=True):
@@ -260,7 +273,7 @@ class CookieProcessorTester(unittest.TestCase):
         :return: void
         """
         cookie_processor = CookieProcessor()
-        query, solution = self.data.gen_test_data(num_dates=50, num_unique_cookies=50, num_total_cookies=1000)
+        query, solution = self.data.gen_test_data(num_timestamps=50, num_unique_cookies=50, num_total_cookies=1000)
         cookie_processor.process_cookies_csv("test.csv")
         self.assertEqual(solution, cookie_processor.find_active_cookies(query))
 
@@ -270,7 +283,7 @@ class CookieProcessorTester(unittest.TestCase):
         :return: void
         """
         cookie_processor = CookieProcessor()
-        query, solution = self.data.gen_test_data(num_dates=500, num_unique_cookies=500, num_total_cookies=25000)
+        query, solution = self.data.gen_test_data(num_timestamps=500, num_unique_cookies=500, num_total_cookies=25000)
         cookie_processor.process_cookies_csv("test.csv")
         self.assertEqual(solution, cookie_processor.find_active_cookies(query))
 
@@ -280,7 +293,7 @@ class CookieProcessorTester(unittest.TestCase):
         :return: void
         """
         cookie_processor = CookieProcessor()
-        query, solution = self.data.gen_test_data(num_dates=500, num_unique_cookies=500, num_total_cookies=25000,
+        query, solution = self.data.gen_test_data(num_timestamps=500, num_unique_cookies=500, num_total_cookies=25000,
                                                   exists=False)
         cookie_processor.process_cookies_csv("test.csv")
         self.assertEqual(solution, cookie_processor.find_active_cookies(query))
@@ -291,7 +304,7 @@ class CookieProcessorTester(unittest.TestCase):
         :return: void
         """
         cookie_processor = CookieProcessor()
-        query, solution = self.data.gen_test_data(num_dates=500, num_unique_cookies=500, num_total_cookies=25000,
+        query, solution = self.data.gen_test_data(num_timestamps=500, num_unique_cookies=500, num_total_cookies=25000,
                                                   multiple_max=True)
         cookie_processor.process_cookies_csv("test.csv")
         self.assertEqual(solution, cookie_processor.find_active_cookies(query))
@@ -302,7 +315,8 @@ class CookieProcessorTester(unittest.TestCase):
         :return: void
         """
         cookie_processor = CookieProcessor()
-        query, solution = self.data.gen_test_data(num_dates=1000, num_unique_cookies=1000, num_total_cookies=250000)
+        query, solution = self.data.gen_test_data(num_timestamps=10000, num_unique_cookies=1000,
+                                                  num_total_cookies=500000)
         cookie_processor.process_cookies_csv("test.csv")
         self.assertEqual(solution, cookie_processor.find_active_cookies(query))
 
@@ -312,8 +326,8 @@ class CookieProcessorTester(unittest.TestCase):
         :return: void
         """
         cookie_processor = CookieProcessor()
-        query, solution = self.data.gen_test_data(num_dates=1000, num_unique_cookies=1000, num_total_cookies=250000,
-                                                  exists=False)
+        query, solution = self.data.gen_test_data(num_timestamps=10000, num_unique_cookies=1000,
+                                                  num_total_cookies=500000, exists=False)
         cookie_processor.process_cookies_csv("test.csv")
         self.assertEqual(solution, cookie_processor.find_active_cookies(query))
 
@@ -323,8 +337,8 @@ class CookieProcessorTester(unittest.TestCase):
         :return: void
         """
         cookie_processor = CookieProcessor()
-        query, solution = self.data.gen_test_data(num_dates=1000, num_unique_cookies=1000, num_total_cookies=250000,
-                                                  multiple_max=True)
+        query, solution = self.data.gen_test_data(num_timestamps=10000, num_unique_cookies=1000,
+                                                  num_total_cookies=500000, multiple_max=True)
         cookie_processor.process_cookies_csv("test.csv")
         self.assertEqual(solution, cookie_processor.find_active_cookies(query))
 
